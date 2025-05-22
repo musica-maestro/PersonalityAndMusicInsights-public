@@ -118,25 +118,27 @@ def main():
 
 def display_big5_results(scores):
     """
-    Display Big Five personality results with enhanced styling.
+    Display Big Five personality results with enhanced styling in 3 columns.
     """
     st.header("Your Big Five Personality Profile")
     
-    # Create two columns: one for chart, one for scores
-    col1, col2 = st.columns([3, 2])
+    # Create three columns for the Big Five display
+    col1, col2, col3 = st.columns(3)
     
+    # Column 1: Radar Chart
     with col1:
+        st.subheader("Visual Profile")
         # Create a radar chart with improved styling
         plt.rcParams.update({
             'axes.facecolor': '#f0f2f6',
             'figure.facecolor': '#f0f2f6',
-            'font.size': 10,
+            'font.size': 8,
             'axes.labelcolor': '#2c3e50',
             'xtick.color': '#2c3e50',
             'ytick.color': '#2c3e50'
         })
         
-        fig = plt.figure(figsize=(10, 8), facecolor='#f0f2f6')
+        fig = plt.figure(figsize=(8, 8), facecolor='#f0f2f6')
         ax = fig.add_subplot(111, polar=True)
         
         # Get the traits and scores
@@ -162,19 +164,21 @@ def display_big5_results(scores):
         
         # Set the angle for each trait
         ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(traits, size=12, color='#2c3e50', weight='bold')
+        ax.set_xticklabels(traits, size=10, color='#2c3e50', weight='bold')
         
         # Set y-limits
         ax.set_ylim(0, 5)
         ax.set_facecolor('none')  # Transparent background
         
         # Add title
-        plt.title('Big Five Personality Traits', size=15, color='#2c3e50', weight='bold', pad=20)
+        plt.title('Big Five Traits', size=12, color='#2c3e50', weight='bold', pad=20)
         
         # Display the chart
         st.pyplot(fig)
     
+    # Column 2: Numerical Scores
     with col2:
+        st.subheader("Your Scores")
         # Display the scores in a metrics container with gradient
         st.markdown("""
         <div style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); 
@@ -184,11 +188,43 @@ def display_big5_results(scores):
         
         # Metrics for each trait
         for trait, score in scores.items():
-            st.metric(trait, f"{score:.2f}/5")
+            st.metric(trait[:12], f"{score:.2f}/5")  # Truncate long trait names
         
         st.markdown("</div>", unsafe_allow_html=True)
     
-    # Trait descriptions with improved card design
+    # Column 3: Quick Insights
+    with col3:
+        st.subheader("Quick Insights")
+        
+        # Generate quick insights based on scores
+        insights = []
+        for trait, score in scores.items():
+            if score > 3.5:
+                level = "High"
+                color = "#2ecc71"
+            elif score < 2.5:
+                level = "Low" 
+                color = "#e74c3c"
+            else:
+                level = "Moderate"
+                color = "#f39c12"
+            
+            insights.append((trait, level, color, score))
+        
+        # Display insights as compact cards
+        for trait, level, color, score in insights:
+            st.markdown(f"""
+            <div style="background-color: {color}; 
+                        color: white; 
+                        padding: 10px; 
+                        border-radius: 8px; 
+                        margin-bottom: 8px;">
+                <strong>{trait[:12]}</strong><br>
+                <span style="font-size: 0.9em;">{level} ({score:.1f}/5)</span>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Trait descriptions section (full width below the 3 columns)
     st.subheader("Understanding Your Results")
     
     trait_descriptions = {
@@ -208,7 +244,7 @@ def display_big5_results(scores):
         "Openness": "#9b59b6"         # Purple
     }
     
-    # Fixed the trait cards display to properly show trait results
+    # Display trait cards in a grid layout (3 columns)
     cols = st.columns(3)
     
     for i, (trait, description) in enumerate(trait_descriptions.items()):
