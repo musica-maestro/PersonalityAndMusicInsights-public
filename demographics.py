@@ -13,12 +13,10 @@ def display_demographics_form():
             "Age Range",
             options=[
                 "Prefer not to say",
-                "18-24", 
-                "25-34", 
-                "35-44", 
-                "45-54", 
-                "55-64", 
-                "65+"
+                "18-26", 
+                "27-36", 
+                "37-50", 
+                "Over 50"
             ],
             index=0,
             placeholder="Select your age range"
@@ -30,8 +28,7 @@ def display_demographics_form():
             options=[
                 "Prefer not to say",
                 "Male", 
-                "Female",
-                "Other"
+                "Female"
             ],
             index=0,
             placeholder="Select your gender"
@@ -67,12 +64,11 @@ def display_demographics_form():
             "Highest Level of Education",
             options=[
                 "Prefer not to say",
-                "High School or equivalent",
-                "Some College",
+                "No degree"
+                "High School Degree",
                 "Bachelor's Degree",
                 "Master's Degree",
-                "Doctoral Degree",
-                "Vocational Training"
+                "PhD",
             ],
             index=0,
             placeholder="Select your education level"
@@ -83,9 +79,12 @@ def display_demographics_form():
             "Occupation",
             options=[
                 "Prefer not to say",
-                "Student",
-                "Retired",
                 "Unemployed",
+                "Student",
+                "Employee",
+                "Self-employed",
+                "Homemaker",
+                "Retired",
             ],
             index=0,
             placeholder="Select your occupation"
