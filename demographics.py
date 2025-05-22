@@ -64,7 +64,7 @@ def display_demographics_form():
             "Highest Level of Education",
             options=[
                 "Prefer not to say",
-                "No degree"
+                "No degree",
                 "High School Degree",
                 "Bachelor's Degree",
                 "Master's Degree",
