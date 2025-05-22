@@ -192,87 +192,54 @@ def display_big5_results(scores):
         
         st.markdown("</div>", unsafe_allow_html=True)
     
-    # Column 3: Quick Insights
+    # Column 3: Understanding Your Results
     with col3:
-        st.subheader("Quick Insights")
+        st.subheader("Understanding Your Results")
         
-        # Generate quick insights based on scores
-        insights = []
-        for trait, score in scores.items():
-            if score > 3.5:
-                level = "High"
-                color = "#2ecc71"
-            elif score < 2.5:
-                level = "Low" 
-                color = "#e74c3c"
-            else:
-                level = "Moderate"
-                color = "#f39c12"
-            
-            insights.append((trait, level, color, score))
+        trait_descriptions = {
+            "Extraversion": "Social Energy & Interaction: Reveals how you connect with the world and interact with others.",
+            "Agreeableness": "Interpersonal Harmony: Reflects your approach to relationships and social interactions.",
+            "Conscientiousness": "Personal Organization: Indicates your approach to planning, responsibility, and goal-setting.",
+            "Neuroticism": "Emotional Resilience: Shows how you experience and manage emotional responses.",
+            "Openness": "Intellectual Curiosity: Demonstrates your openness to new experiences and creativity."
+        }
         
-        # Display insights as compact cards
-        for trait, level, color, score in insights:
-            st.markdown(f"""
-            <div style="background-color: {color}; 
-                        color: white; 
-                        padding: 10px; 
-                        border-radius: 8px; 
-                        margin-bottom: 8px;">
-                <strong>{trait[:12]}</strong><br>
-                <span style="font-size: 0.9em;">{level} ({score:.1f}/5)</span>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # Trait descriptions section (full width below the 3 columns)
-    st.subheader("Understanding Your Results")
-    
-    trait_descriptions = {
-        "Extraversion": "Social Energy & Interaction: Reveals how you connect with the world and interact with others.",
-        "Agreeableness": "Interpersonal Harmony: Reflects your approach to relationships and social interactions.",
-        "Conscientiousness": "Personal Organization: Indicates your approach to planning, responsibility, and goal-setting.",
-        "Neuroticism": "Emotional Resilience: Shows how you experience and manage emotional responses.",
-        "Openness": "Intellectual Curiosity: Demonstrates your openness to new experiences and creativity."
-    }
-    
-    # Colors for each trait
-    trait_colors = {
-        "Extraversion": "#3498db",    # Bright Blue
-        "Agreeableness": "#2ecc71",   # Emerald Green
-        "Conscientiousness": "#e74c3c", # Vibrant Red
-        "Neuroticism": "#f39c12",     # Warm Orange
-        "Openness": "#9b59b6"         # Purple
-    }
-    
-    # Display trait cards in a grid layout (3 columns)
-    cols = st.columns(3)
-    
-    for i, (trait, description) in enumerate(trait_descriptions.items()):
-        with cols[i % 3]:
+        # Colors for each trait
+        trait_colors = {
+            "Extraversion": "#3498db",    # Bright Blue
+            "Agreeableness": "#2ecc71",   # Emerald Green
+            "Conscientiousness": "#e74c3c", # Vibrant Red
+            "Neuroticism": "#f39c12",     # Warm Orange
+            "Openness": "#9b59b6"         # Purple
+        }
+        
+        # Display trait cards vertically in the third column
+        for trait, description in trait_descriptions.items():
             score = scores[trait]
             color = trait_colors[trait]
             
             # Determine text based on score
             if score > 3.5:
-                score_text = f"Your score suggests you are **high** in {trait}."
+                score_text = f"You are **high** in {trait}."
             elif score < 2.5:
-                score_text = f"Your score suggests you are **low** in {trait}."
+                score_text = f"You are **low** in {trait}."
             else:
-                score_text = f"Your score suggests you are **moderate** in {trait}."
+                score_text = f"You are **moderate** in {trait}."
             
-            # Create a clean card with proper markdown
+            # Create compact cards for the column layout
             st.markdown(f"""
             <div style="background-color: {color}; 
                         color: white; 
-                        padding: 15px; 
-                        border-radius: 10px; 
-                        margin-bottom: 15px;">
-                <h3 style="color: white; margin-bottom: 10px;">{trait}</h3>
-                <p style="margin-bottom: 15px;">{description}</p>
+                        padding: 12px; 
+                        border-radius: 8px; 
+                        margin-bottom: 12px;">
+                <h4 style="color: white; margin-bottom: 8px; font-size: 1em;">{trait}</h4>
+                <p style="margin-bottom: 8px; font-size: 0.85em;">{description}</p>
                 <div style="background-color: rgba(255,255,255,0.2); 
-                            padding: 10px; 
-                            border-radius: 8px; 
-                            text-align: center;">
+                            padding: 6px; 
+                            border-radius: 5px; 
+                            text-align: center;
+                            font-size: 0.8em;">
                     {score_text.replace('**', '<strong>').replace('**', '</strong>')}
                 </div>
             </div>
