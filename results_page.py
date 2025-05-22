@@ -122,11 +122,27 @@ def display_big5_results(scores):
     """
     st.header("Your Big Five Personality Profile")
     
-    # Create three columns for the Big Five display
-    col1, col2, col3 = st.columns(3)
+    # Create three columns for the Big Five display with equal spacing
+    col1, col2, col3 = st.columns([1, 1, 1])
     
-    # Column 1: Radar Chart
+    # Column 1: Numerical Scores
     with col1:
+        st.subheader("Your Scores")
+        # Display the scores in a metrics container with gradient
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); 
+                    border-radius: 15px; 
+                    padding: 20px;">
+        """, unsafe_allow_html=True)
+        
+        # Metrics for each trait
+        for trait, score in scores.items():
+            st.metric(trait[:12], f"{score:.2f}/5")  # Truncate long trait names
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Column 2: Visual Profile (Radar Chart) - Center Column
+    with col2:
         st.subheader("Visual Profile")
         # Create a radar chart with improved styling
         plt.rcParams.update({
@@ -175,22 +191,6 @@ def display_big5_results(scores):
         
         # Display the chart
         st.pyplot(fig)
-    
-    # Column 2: Numerical Scores
-    with col2:
-        st.subheader("Your Scores")
-        # Display the scores in a metrics container with gradient
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); 
-                    border-radius: 15px; 
-                    padding: 20px;">
-        """, unsafe_allow_html=True)
-        
-        # Metrics for each trait
-        for trait, score in scores.items():
-            st.metric(trait[:12], f"{score:.2f}/5")  # Truncate long trait names
-        
-        st.markdown("</div>", unsafe_allow_html=True)
     
     # Column 3: Understanding Your Results
     with col3:
