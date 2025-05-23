@@ -27,8 +27,7 @@ class StreamlitSpotifyAuth:
             client_secret=self.client_secret,
             redirect_uri=self.redirect_uri,
             scope=self.scope,
-            cache_path=".cache",  # Use a cache path - will be managed by session state
-            show_dialog=True      # MODIFIED: Ensures login/auth dialog is always shown
+            cache_path=".cache"  # Use a cache path - will be managed by session state
         )
     
     def get_token_from_session(self):
@@ -69,15 +68,14 @@ class StreamlitSpotifyAuth:
                 del st.session_state.spotify_token
         return None
     
-    def get_auth_url(self):
+    def get_auth_url(self, show_dialog=False):
         """Get authorization URL"""
-        # show_dialog=True in __init__ means this URL will always prompt
-        return self.sp_oauth.get_authorize_url() 
+        return self.sp_oauth.get_authorize_url(show_dialog=show_dialog)
     
     def get_token_from_code(self, code):
         """Exchange authorization code for token"""
         try:
-            token_info = self.sp_oauth.get_access_token(code, check_cache=False) # check_cache=False as we manage cache via session
+            token_info = self.sp_oauth.get_access_token(code)
             self.save_token_to_session(token_info)
             return token_info
         except Exception as e:
@@ -85,14 +83,13 @@ class StreamlitSpotifyAuth:
             return None
 
 def get_spotify_oauth():
-    """Function to get SpotifyOAuth instance"""
+    """Function to get SpotifyOAuth instance - this was missing!"""
     return SpotifyOAuth(
         client_id=CLIENT_ID,
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        cache_path=".cache",  # Use a cache path - will be ignored in our implementation
-        show_dialog=True      # MODIFIED: Ensures login/auth dialog is always shown
+        cache_path=".cache"  # Use a cache path - will be ignored in our implementation
     )
 
 def get_spotify_client():
@@ -113,28 +110,41 @@ def handle_callback():
             st.success("Successfully authenticated with Spotify!")
             # Clear URL parameters
             st.query_params.clear()
-            st.rerun() # Rerun to update the UI state
+            st.rerun()
         else:
             st.error("Failed to authenticate with Spotify.")
-            # Clear potentially problematic code from URL to avoid re-processing
-            st.query_params.clear() 
-            st.rerun()
     
     elif 'error' in query_params:
         error = query_params['error']
         st.error(f"Spotify authentication error: {error}")
-        st.query_params.clear() # Clear error from URL
-        st.rerun()
-
 
 def connect_to_spotify():
-    """Connect to Spotify using browser-based auth"""
+    """
+    Connects to Spotify using the OAuth 2.0 Authorization Code Flow.
+    This is the standard and secure method for web applications.
+
+    How it works:
+    1. Check for an existing token in the session state.
+    2. If no token exists, generate a unique authorization URL for the user.
+       - We add `show_dialog=True` to the URL generation. This is the key change
+         to address the user's request. It ensures that Spotify will always
+         prompt the user to log in and then grant permissions, even if they
+         have previously authorized the app. This allows a user to log in
+         freshly if they are not logged into Spotify in their browser, or to
+         switch accounts if they are already logged in.
+    3. The user clicks a button, is redirected to Spotify's login/consent page.
+    4. After logging in and approving, Spotify redirects them back to this app.
+    5. The `handle_callback()` function catches the redirect, exchanges the
+       authorization code for an access token, and saves it to the session.
+    6. The app now has an authenticated client to make API calls.
+
+    Note: It is not possible to create a username/password login form directly
+    within the Streamlit app. This is by design for security (OAuth). The user
+    must always enter their credentials on the official spotify.com domain.
+    """
     try:
-        # Handle OAuth callback first if code or error in URL params
-        if 'code' in st.query_params or 'error' in st.query_params:
-            handle_callback() # This function will rerun if it processes a code/error
-            # If handle_callback reruns, the rest of this function won't execute in this pass
-            # If it doesn't find a code/error to process, it will continue
+        # Handle OAuth callback first
+        handle_callback()
         
         auth = StreamlitSpotifyAuth()
         token_info = auth.get_token_from_session()
@@ -143,7 +153,10 @@ def connect_to_spotify():
             st.markdown("### Connect to Spotify")
             st.write("Please click the button below to authorize this app to access your Spotify data:")
             
-            auth_url = auth.get_auth_url()
+            # By setting show_dialog=True, we force the Spotify login and authorization
+            # screen to appear every time. This ensures that a user who is not logged
+            # into Spotify in their browser will be prompted to do so.
+            auth_url = auth.get_auth_url(show_dialog=True)
             
             # Create a more prominent button
             st.markdown(f"""
@@ -168,21 +181,17 @@ def connect_to_spotify():
             </div>
             """, unsafe_allow_html=True)
             
-            st.info("You'll be redirected to Spotify to log in and authorize, then back to this app.")
-            return None # Important to return None to stop further execution until authenticated
+            st.info("You'll be redirected to the official Spotify login page and then back to this app automatically.")
+            return None
         
         # Create Spotify client with valid token
         return spotipy.Spotify(auth=token_info['access_token'])
     
     except Exception as e:
         st.error(f"Error connecting to Spotify: {e}")
-        # Potentially clear token if it's causing issues
-        # if 'spotify_token' in st.session_state:
-        #     del st.session_state.spotify_token
         return None
 
 # Alternative: Using browser localStorage (requires JavaScript)
-# This part is for client-side persistence if desired, but current auth flow focuses on session_state
 def setup_browser_storage():
     """Setup browser localStorage for token storage"""
     st.markdown("""
@@ -214,35 +223,28 @@ def setup_browser_storage():
 
 # Function to logout/clear token
 def logout_spotify():
-    """Clear Spotify authentication from session state"""
+    """Clear Spotify authentication"""
     if 'spotify_token' in st.session_state:
         del st.session_state.spotify_token
-    # Optionally, clear localStorage if it's being used
-    # st.markdown("<script>window.spotifyAuth.clearToken();</script>", unsafe_allow_html=True)
     st.success("Successfully logged out from Spotify!")
     st.rerun()
 
 # Main app function with logout option
 def main():
-    st.set_page_config(page_title="Spotify Dashboard", layout="wide")
-    # Setup browser storage (optional, not directly used by Python auth logic here)
-    # setup_browser_storage() # Uncomment if you plan to use localStorage sync
+    # Setup browser storage
+    setup_browser_storage()
     
     # Add logout button in sidebar if authenticated
-    # Check for token before attempting to create the button
-    # This avoids trying to access session_state too early or unnecessarily
-    # The connect_to_spotify function will handle the display of login UI if not authenticated
+    if 'spotify_token' in st.session_state:
+        st.sidebar.markdown("---")
+        if st.sidebar.button("🚪 Logout from Spotify", type="secondary"):
+            logout_spotify()
     
-    sp = connect_to_spotify() # This handles auth and returns client or None
-
+    sp = connect_to_spotify()
+    
     if sp:
-        if 'spotify_token' in st.session_state: # Ensure token exists before showing logout
-            st.sidebar.markdown("---")
-            if st.sidebar.button("🚪 Logout from Spotify", type="secondary"):
-                logout_spotify() # This will rerun the app
-
         try:
-            # Test the connection and get user info
+            # Test the connection
             user = sp.current_user()
             st.success(f"Successfully connected to Spotify! Welcome, {user['display_name']}!")
             
@@ -253,7 +255,7 @@ def main():
             st.sidebar.title("Navigation")
             selection = st.sidebar.radio(
                 "Information",
-                ["Top Tracks", "Top Artists", "Recently Played"] # Add other options as needed
+                ["Top Tracks", "Top Artists", "Recently Played"]
             )
             
             # Display selected content
@@ -263,93 +265,41 @@ def main():
                 display_top_artists(sp)
             elif selection == "Recently Played":
                 display_recently_played(sp)
-            # Add other sections like:
-            # elif selection == "Playlists":
-            #     display_playlists(sp)
-            # elif selection == "Followed Artists":
-            #     display_following(sp)
-
-            # Example: Button to fetch and save all data to DB
-            # This might be better placed elsewhere or triggered differently
-            # if st.sidebar.button("Sync Data to DB"):
-            #     with st.spinner("Fetching and saving all Spotify data..."):
-            #         if fetch_and_save_all_data(sp):
-            #             st.sidebar.success("Data synced successfully!")
-            #         else:
-            #             st.sidebar.error("Failed to sync data.")
                 
         except spotipy.exceptions.SpotifyException as e:
             st.error(f"Spotify API error: {e}")
-            if "token expired" in str(e).lower() or e.http_status == 401:
-                st.info("Your session has expired or is invalid. Please log out and reconnect.")
-                # Automatically clear the potentially bad token
-                if 'spotify_token' in st.session_state:
-                    del st.session_state.spotify_token
+            if "token expired" in str(e).lower():
+                st.info("Your session has expired. Please reconnect to Spotify.")
                 if st.button("Reconnect to Spotify"):
-                    st.rerun() # Will trigger the login flow again
-            # else:
-            # The logout button is always available if sp is not None
-            # if st.button("Logout and try again"):
-            # logout_spotify()
+                    logout_spotify()
         except Exception as e:
-            st.error(f"An unexpected error occurred: {e}")
-            # if st.button("Logout and try again"):
-            # logout_spotify()
-    # else:
-        # If sp is None, connect_to_spotify() has already displayed the login button
-        # or an error message. No further action needed here for the main content area.
-        # The sidebar for logout shouldn't appear if sp is None.
-        pass
-
+            st.error(f"Unexpected error: {e}")
 
 # Enhanced token validation
 def validate_spotify_connection(sp):
     """Validate if Spotify connection is still valid"""
-    if not sp: return False
     try:
-        sp.current_user() # A simple API call to check validity
+        sp.current_user()
         return True
-    except spotipy.exceptions.SpotifyException as e:
-        # Specifically check for auth errors
-        if e.http_status == 401 or e.http_status == 403: 
-            return False
-        # For other Spotify errors, we might still consider the connection "valid" but API call failed
-        # However, for simplicity here, any SpotifyException means connection is problematic for current use.
-        return False 
-    except Exception: # Other network errors etc.
+    except spotipy.exceptions.SpotifyException:
+        return False
+    except Exception:
         return False
 
 # Token refresh mechanism
-def ensure_valid_token(sp_instance):
-    """Ensure token is valid, attempt refresh if needed. Returns a new sp_instance or None."""
-    if validate_spotify_connection(sp_instance):
-        return sp_instance
-
-    # If validation fails, try to refresh
-    auth_manager = StreamlitSpotifyAuth() # Re-create to access refresh logic
-    token_info = auth_manager.get_token_from_session() # Get current token from session
-
-    if token_info and 'refresh_token' in token_info:
-        st.info("Spotify token may have expired. Attempting to refresh...")
-        new_token_info = auth_manager.refresh_token(token_info)
-        if new_token_info:
-            st.success("Token refreshed successfully!")
-            return spotipy.Spotify(auth=new_token_info['access_token'])
-        else:
-            st.error("Failed to refresh token. Please log out and log in again.")
-            # Clear the invalid token from session to force re-authentication
-            if 'spotify_token' in st.session_state:
-                del st.session_state.spotify_token
-            st.button("Login to Spotify", on_click=lambda: st.rerun()) # Offer a button to re-trigger login
-            return None
-    else:
-        # No refresh token or no token at all, force re-login
-        st.warning("Spotify authentication is invalid or missing. Please log in.")
-        if 'spotify_token' in st.session_state:
-            del st.session_state.spotify_token # Clear any partial/invalid token
-        st.button("Login to Spotify", on_click=lambda: st.rerun())
+def ensure_valid_token(sp):
+    """Ensure token is valid, refresh if needed"""
+    if not validate_spotify_connection(sp):
+        auth = StreamlitSpotifyAuth()
+        token_info = auth.get_token_from_session()
+        
+        if token_info:
+            refreshed_token = auth.refresh_token(token_info)
+            if refreshed_token:
+                return spotipy.Spotify(auth=refreshed_token['access_token'])
+        
         return None
-
+    return sp
 
 # Your existing display functions remain the same...
 def display_top_tracks(sp):
@@ -362,23 +312,16 @@ def display_top_tracks(sp):
             "short_term": "Last 4 Weeks",
             "medium_term": "Last 6 Months", 
             "long_term": "All Time"
-        }[x],
-        key="top_tracks_time_range" # Unique key for radio
+        }[x]
     )
     
-    sp = ensure_valid_token(sp) # Ensure token is valid before API call
+    # Ensure valid token before API call
+    sp = ensure_valid_token(sp)
     if not sp:
-        # ensure_valid_token already shows messages and potentially a reconnect button
-        return 
-    
-    try:
-        top_tracks = sp.current_user_top_tracks(limit=21, time_range=time_range) # e.g. 21 for 3 columns
-    except spotipy.exceptions.SpotifyException as e:
-        st.error(f"Could not load top tracks: {e}")
-        if e.http_status == 401: # Unauthorized
-            if 'spotify_token' in st.session_state: del st.session_state.spotify_token
-            st.button("Reconnect to Spotify", on_click=lambda: st.rerun())
+        st.error("Authentication expired. Please reconnect.")
         return
+    
+    top_tracks = sp.current_user_top_tracks(limit=50, time_range=time_range)
     
     if not top_tracks['items']:
         st.info("No top tracks found for this time period.")
@@ -388,27 +331,37 @@ def display_top_tracks(sp):
     for i, track in enumerate(top_tracks['items'], 1):
         artists = ", ".join([artist['name'] for artist in track['artists']])
         album = track['album']['name']
+        
         preview_url = track['preview_url']
         track_url = track['external_urls']['spotify']
-        image_url = track['album']['images'][0]['url'] if track['album']['images'] else "https://via.placeholder.com/150" # Placeholder
+        image_url = track['album']['images'][0]['url'] if track['album']['images'] else None
         
         tracks_data.append({
-            "Rank": i, "Track": track['name'], "Artist(s)": artists, "Album": album,
-            "Preview": preview_url, "Spotify Link": track_url, "Image": image_url,
-            "track_id": track['id'], "time_range": time_range
+            "Rank": i,
+            "Track": track['name'],
+            "Artist(s)": artists,
+            "Album": album,
+            "Preview": preview_url,
+            "Spotify Link": track_url,
+            "Image": image_url,
+            "track_id": track['id'],
+            "time_range": time_range
         })
     
+    # Display tracks in a grid (3 columns)
     cols = st.columns(3)
     for i, item in enumerate(tracks_data):
         with cols[i % 3]:
-            if item['Image']: st.image(item['Image'], width=150)
+            st.image(item['Image'], width=150)
             st.write(f"**{i+1}. {item['Track']}**")
-            st.write(f"_{item['Artist(s)']}_")
-            st.caption(f"Album: {item['Album']}")
-            if item['Preview']: st.audio(item['Preview'], format="audio/mp3", start_time=0)
-            st.markdown(f"[Open on Spotify]({item['Spotify Link']})", unsafe_allow_html=True)
-            st.markdown("---")
+            st.write(f"by {item['Artist(s)']}")
+            st.write(f"Album: {item['Album']}")
+            if item['Preview']:
+                st.audio(item['Preview'])
+            st.markdown(f"[Open in Spotify]({item['Spotify Link']})")
+            st.write("---")
 
+# Function to display top artists
 def display_top_artists(sp):
     st.header("Your Top Artists")
     
@@ -419,21 +372,10 @@ def display_top_artists(sp):
             "short_term": "Last 4 Weeks",
             "medium_term": "Last 6 Months", 
             "long_term": "All Time"
-        }[x],
-        key="top_artists_time_range" # Unique key
+        }[x]
     )
-
-    sp = ensure_valid_token(sp)
-    if not sp: return
-
-    try:
-        top_artists = sp.current_user_top_artists(limit=21, time_range=time_range)
-    except spotipy.exceptions.SpotifyException as e:
-        st.error(f"Could not load top artists: {e}")
-        if e.http_status == 401:
-            if 'spotify_token' in st.session_state: del st.session_state.spotify_token
-            st.button("Reconnect to Spotify", on_click=lambda: st.rerun())
-        return
+    
+    top_artists = sp.current_user_top_artists(limit=50, time_range=time_range)
     
     if not top_artists['items']:
         st.info("No top artists found for this time period.")
@@ -441,195 +383,320 @@ def display_top_artists(sp):
     
     artists_data = []
     for i, artist in enumerate(top_artists['items'], 1):
-        genres = ", ".join(artist['genres'][:3]) if artist['genres'] else "N/A" # Show top 3 genres
-        image_url = artist['images'][0]['url'] if artist['images'] else "https://via.placeholder.com/150"
+        genres = ", ".join(artist['genres']) if artist['genres'] else "Not specified"
+        image_url = artist['images'][0]['url'] if artist['images'] else None
         
         artists_data.append({
-            "Rank": i, "Artist": artist['name'], "Genres": genres,
-            "Popularity": artist['popularity'], "Followers": artist['followers']['total'],
-            "Spotify Link": artist['external_urls']['spotify'], "Image": image_url,
-            "artist_id": artist['id'], "time_range": time_range
+            "Rank": i,
+            "Artist": artist['name'],
+            "Genres": genres,
+            "Popularity": artist['popularity'],
+            "Followers": artist['followers']['total'],
+            "Spotify Link": artist['external_urls']['spotify'],
+            "Image": image_url,
+            "artist_id": artist['id'],
+            "time_range": time_range
         })
     
+    # Display in grid (3 columns)
     cols = st.columns(3)
     for i, item in enumerate(artists_data):
         with cols[i % 3]:
-            if item['Image']: st.image(item['Image'], width=150)
+            st.image(item['Image'], width=150)
             st.write(f"**{i+1}. {item['Artist']}**")
-            st.caption(f"Genres: {item['Genres']}")
+            st.write(f"Genres: {item['Genres']}")
             st.write(f"Popularity: {item['Popularity']}/100")
             st.write(f"Followers: {item['Followers']:,}")
-            st.markdown(f"[Open on Spotify]({item['Spotify Link']})", unsafe_allow_html=True)
-            st.markdown("---")
+            st.markdown(f"[Open in Spotify]({item['Spotify Link']})")
+            st.write("---")
 
+# Function to display playlists
+def display_playlists(sp):
+    st.header("Your Playlists")
+    
+    playlists = sp.current_user_playlists(limit=50)
+    
+    if not playlists['items']:
+        st.info("No playlists found.")
+        return
+    
+    playlists_data = []
+    for i, playlist in enumerate(playlists['items'], 1):
+        # Get owner name
+        owner = playlist['owner']['display_name']
+        is_own = playlist['owner']['id'] == sp.current_user()['id']
+        
+        image_url = playlist['images'][0]['url'] if playlist['images'] else None
+        
+        playlists_data.append({
+            "Rank": i,
+            "Name": playlist['name'],
+            "Tracks": playlist['tracks']['total'],
+            "Owner": "You" if is_own else owner,
+            "Public": "Yes" if playlist['public'] else "No",
+            "Collaborative": "Yes" if playlist['collaborative'] else "No",
+            "Spotify Link": playlist['external_urls']['spotify'],
+            "Image": image_url,
+            "playlist_id": playlist['id']
+        })
+    
+    # Display in grid (3 columns)
+    cols = st.columns(3)
+    for i, item in enumerate(playlists_data):
+        with cols[i % 3]:
+            st.image(item['Image'], width=150)
+            st.write(f"**{item['Name']}**")
+            st.write(f"Tracks: {item['Tracks']}")
+            st.write(f"Owner: {item['Owner']}")
+            st.write(f"Public: {item['Public']}")
+            st.markdown(f"[Open in Spotify]({item['Spotify Link']})")
+            st.write("---")
 
+# Function to display followed artists
+def display_following(sp):
+    st.header("Artists You Follow")
+    
+    following = sp.current_user_followed_artists(limit=50)
+    
+    if not following['artists']['items']:
+        st.info("You don't follow any artists.")
+        return
+    
+    following_data = []
+    for i, artist in enumerate(following['artists']['items'], 1):
+        genres = ", ".join(artist['genres']) if artist['genres'] else "Not specified"
+        image_url = artist['images'][0]['url'] if artist['images'] else None
+        
+        following_data.append({
+            "Rank": i,
+            "Artist": artist['name'],
+            "Genres": genres,
+            "Popularity": artist['popularity'],
+            "Followers": artist['followers']['total'],
+            "Spotify Link": artist['external_urls']['spotify'],
+            "Image": image_url,
+            "artist_id": artist['id']
+        })
+    
+    # Display in grid (3 columns)
+    cols = st.columns(3)
+    for i, item in enumerate(following_data):
+        with cols[i % 3]:
+            st.image(item['Image'], width=150)
+            st.write(f"**{item['Artist']}**")
+            st.write(f"Genres: {item['Genres']}")
+            st.write(f"Popularity: {item['Popularity']}/100")
+            st.write(f"Followers: {item['Followers']:,}")
+            st.markdown(f"[Open in Spotify]({item['Spotify Link']})")
+            st.write("---")
+
+# Function to display recently played tracks
 def display_recently_played(sp):
     st.header("Your Recently Played Tracks")
-
-    sp = ensure_valid_token(sp)
-    if not sp: return
-
-    try:
-        results = sp.current_user_recently_played(limit=21)
-    except spotipy.exceptions.SpotifyException as e:
-        st.error(f"Could not load recently played tracks: {e}")
-        if e.http_status == 401:
-            if 'spotify_token' in st.session_state: del st.session_state.spotify_token
-            st.button("Reconnect to Spotify", on_click=lambda: st.rerun())
-        return
+    
+    results = sp.current_user_recently_played(limit=50)
     
     if not results['items']:
         st.info("No recently played tracks found.")
         return
     
+    # Extract data for display
     tracks_data = []
-    unique_tracks = {} # To avoid showing same track multiple times if played consecutively
-    for item in results['items']:
+    for i, item in enumerate(results['items'], 1):
         track = item['track']
-        if track['id'] not in unique_tracks: # Simple de-duplication for display
-            unique_tracks[track['id']] = item 
-    
-    processed_items = list(unique_tracks.values())[:21] # Limit after de-duplication
+        played_at = item['played_at']
 
-    for i, item in enumerate(processed_items, 1):
-        track = item['track']
-        played_at_str = item['played_at']
-        
-        utc_time = datetime.strptime(played_at_str, '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=pytz.utc)
+        # Convert UTC time to Rome time
+        utc_time = datetime.strptime(played_at, '%Y-%m-%dT%H:%M:%S.%fZ')
+        utc_time = utc_time.replace(tzinfo=pytz.UTC)
         rome_tz = pytz.timezone('Europe/Rome')
         rome_time = utc_time.astimezone(rome_tz)
+        played_at_local = rome_time.strftime('%Y-%m-%d %H:%M:%S')
         
-        # Calculate "time ago"
-        now_rome = datetime.now(rome_tz)
-        time_diff = now_rome - rome_time
-        
-        if time_diff < timedelta(minutes=1): time_ago = "Just now"
-        elif time_diff < timedelta(hours=1): time_ago = f"{int(time_diff.total_seconds() / 60)} min ago"
-        elif time_diff < timedelta(days=1): time_ago = f"{int(time_diff.total_seconds() / 3600)} hr ago"
-        else: time_ago = f"{time_diff.days} day(s) ago"
-
+        # Get track details
         artists = ", ".join([artist['name'] for artist in track['artists']])
         album = track['album']['name']
         preview_url = track['preview_url']
         track_url = track['external_urls']['spotify']
-        image_url = track['album']['images'][0]['url'] if track['album']['images'] else "https://via.placeholder.com/150"
+        image_url = track['album']['images'][0]['url'] if track['album']['images'] else None
         
         tracks_data.append({
-            "Track": track['name'], "Artist(s)": artists, "Album": album,
-            "Played At": rome_time.strftime('%Y-%m-%d %H:%M:%S'), "Time Ago": time_ago,
-            "Preview": preview_url, "Spotify Link": track_url, "Image": image_url
+            "Track": track['name'],
+            "Artist(s)": artists,
+            "Album": album,
+            "Played At": played_at_local,
+            "Preview": preview_url,
+            "Spotify Link": track_url,
+            "Image": image_url
         })
     
+    # Display in grid (3 columns)
     cols = st.columns(3)
     for i, item in enumerate(tracks_data):
         with cols[i % 3]:
-            if item['Image']: st.image(item['Image'], width=150)
+            st.image(item['Image'], width=150)
             st.write(f"**{item['Track']}**")
-            st.write(f"_{item['Artist(s)']}_")
-            st.caption(f"Album: {item['Album']}")
-            st.caption(f"Played: {item['Time Ago']} ({item['Played At']})")
-            if item['Preview']: st.audio(item['Preview'], format="audio/mp3", start_time=0)
-            st.markdown(f"[Open on Spotify]({item['Spotify Link']})", unsafe_allow_html=True)
-            st.markdown("---")
+            st.write(f"by {item['Artist(s)']}")
+            st.write(f"Album: {item['Album']}")
+            st.write(f"Played at: {item['Played At']}")
+            if item['Preview']:
+                st.audio(item['Preview'])
+            st.markdown(f"[Open in Spotify]({item['Spotify Link']})")
+            st.write("---")
     
-    with st.expander("View as table (raw recently played)"):
-        df_raw_recent = []
-        for item in results['items']: # Use original results for table
-            track = item['track']
-            played_at_str = item['played_at']
-            utc_time = datetime.strptime(played_at_str, '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=pytz.utc)
-            rome_tz = pytz.timezone('Europe/Rome')
-            rome_time = utc_time.astimezone(rome_tz)
-            df_raw_recent.append({
-                "Track": track['name'], 
-                "Artist(s)": ", ".join([a['name'] for a in track['artists']]),
-                "Played At (Local)": rome_time.strftime('%Y-%m-%d %H:%M:%S %Z')
-            })
-        st.dataframe(pd.DataFrame(df_raw_recent))
-
-
-# Functions display_playlists and display_following are not in the main radio selection,
-# but I'll keep them here if you plan to add them.
-# Ensure they also use `ensure_valid_token(sp)` and similar error handling.
-
-def display_playlists(sp):
-    st.header("Your Playlists")
-    sp = ensure_valid_token(sp)
-    if not sp: return
-    # ... (rest of the function, similar to others)
-
-def display_following(sp):
-    st.header("Artists You Follow")
-    sp = ensure_valid_token(sp)
-    if not sp: return
-    # ... (rest of the function, similar to others)
-
-# DB related functions (fetch_and_save_all_data, save_spotify_data)
-# are assumed to be working and correctly imported if used.
-# Make sure 'db_utils' is in your project structure or PYTHONPATH.
-# from db_utils import upsert_user_document # Example import
+    # Display raw data in expander
+    with st.expander("View as table"):
+        st.dataframe(pd.DataFrame(tracks_data))
 
 def save_spotify_data(data_type, data):
-    """Placeholder: Save Spotify data to MongoDB."""
-    # from db_utils import upsert_user_document  # Import from your new file
-    # user_id = st.session_state.spotify_user['id'] # Assuming spotify_user is in session
-    # return upsert_user_document(user_id, data_type, data)
-    st.toast(f"Data for {data_type} would be saved (DB logic pending).")
-    print(f"Simulating save for {data_type}: {len(data)} items.")
-    return True
+    """Save Spotify data to MongoDB."""
+    from db_utils import upsert_user_document  # Import from your new file
+    return upsert_user_document(data_type, data)
 
-
+# Fetch and save all Spotify data
 def fetch_and_save_all_data(sp):
-    sp = ensure_valid_token(sp)
-    if not sp:
-        st.sidebar.error("Cannot fetch data: Spotify connection invalid.")
-        return False
-    
-    # Ensure user info is available for saving (if your DB schema needs it)
-    if 'spotify_user' not in st.session_state or not st.session_state.spotify_user:
-        try:
-            st.session_state.spotify_user = sp.current_user()
-        except Exception as e:
-            st.sidebar.error(f"Could not get user info for DB save: {e}")
-            return False
-
-    all_success = True
     try:
-        # Top Tracks
+        # Top Tracks (for all time ranges)
         for time_range in ["short_term", "medium_term", "long_term"]:
             top_tracks = sp.current_user_top_tracks(limit=50, time_range=time_range)
             if top_tracks['items']:
-                # ... (data processing as in your original code) ...
-                # For brevity, assuming tracks_data is prepared
-                tracks_data_prepared = [{"Track": t['name'], "id": t['id']} for t in top_tracks['items']] # Simplified
-                if not save_spotify_data(f'top_tracks_{time_range}', tracks_data_prepared): all_success = False
-        
-        # Top Artists
+                tracks_data = []
+                for i, track in enumerate(top_tracks['items'], 1):
+                    artists = ", ".join([artist['name'] for artist in track['artists']])
+                    album = track['album']['name']
+                    preview_url = track['preview_url']
+                    track_url = track['external_urls']['spotify']
+                    image_url = track['album']['images'][0]['url'] if track['album']['images'] else None
+                    
+                    tracks_data.append({
+                        "Rank": i,
+                        "Track": track['name'],
+                        "Artist(s)": artists,
+                        "Album": album,
+                        "Preview": preview_url,
+                        "Spotify Link": track_url,
+                        "Image": image_url,
+                        "track_id": track['id'],
+                        "time_range": time_range,
+                        "snapshot_date": datetime.now()
+                    })
+                
+                # Save top tracks using the imported MongoDB function
+                #save_to_mongodb('top_tracks', tracks_data, ['track_id', 'time_range', 'snapshot_date'])
+                save_spotify_data('top_tracks_'+ time_range, tracks_data)
+
+        # Top Artists (for all time ranges)
         for time_range in ["short_term", "medium_term", "long_term"]:
             top_artists = sp.current_user_top_artists(limit=50, time_range=time_range)
             if top_artists['items']:
-                # ... (data processing) ...
-                artists_data_prepared = [{"Artist": a['name'], "id": a['id']} for a in top_artists['items']] # Simplified
-                if not save_spotify_data(f'top_artists_{time_range}', artists_data_prepared): all_success = False
+                artists_data = []
+                for i, artist in enumerate(top_artists['items'], 1):
+                    genres = ", ".join(artist['genres']) if artist['genres'] else "Not specified"
+                    image_url = artist['images'][0]['url'] if artist['images'] else None
+                    
+                    artists_data.append({
+                        "Rank": i,
+                        "Artist": artist['name'],
+                        "Genres": genres,
+                        "Popularity": artist['popularity'],
+                        "Followers": artist['followers']['total'],
+                        "Spotify Link": artist['external_urls']['spotify'],
+                        "Image": image_url,
+                        "artist_id": artist['id'],
+                        "time_range": time_range,
+                        "snapshot_date": datetime.now()
+                    })
+                
+                # Save top artists
+                #save_to_mongodb('top_artists', artists_data, ['artist_id', 'time_range', 'snapshot_date'])
+                save_spotify_data('top_artists_'+time_range, artists_data)
 
+        # Playlists
+        playlists = sp.current_user_playlists(limit=50)
+        if playlists['items']:
+            playlists_data = []
+            for i, playlist in enumerate(playlists['items'], 1):
+                owner = playlist['owner']['display_name']
+                is_own = playlist['owner']['id'] == sp.current_user()['id']
+                image_url = playlist['images'][0]['url'] if playlist['images'] else None
+                
+                playlists_data.append({
+                    "Rank": i,
+                    "Name": playlist['name'],
+                    "Tracks": playlist['tracks']['total'],
+                    "Owner": "You" if is_own else owner,
+                    "Public": "Yes" if playlist['public'] else "No",
+                    "Collaborative": "Yes" if playlist['collaborative'] else "No",
+                    "Spotify Link": playlist['external_urls']['spotify'],
+                    "Image": image_url,
+                    "playlist_id": playlist['id'],
+                    "snapshot_date": datetime.now()
+                })
+            
+            # Save playlists
+            #save_to_mongodb('playlists', playlists_data, ['playlist_id', 'snapshot_date'])
+            save_spotify_data('playlists', playlists_data)
+        
+        # Following
+        following = sp.current_user_followed_artists(limit=50)
+        if following['artists']['items']:
+            following_data = []
+            for i, artist in enumerate(following['artists']['items'], 1):
+                genres = ", ".join(artist['genres']) if artist['genres'] else "Not specified"
+                image_url = artist['images'][0]['url'] if artist['images'] else None
+                
+                following_data.append({
+                    "Rank": i,
+                    "Artist": artist['name'],
+                    "Genres": genres,
+                    "Popularity": artist['popularity'],
+                    "Followers": artist['followers']['total'],
+                    "Spotify Link": artist['external_urls']['spotify'],
+                    "Image": image_url,
+                    "artist_id": artist['id'],
+                    "snapshot_date": datetime.now()
+                })
+            
+            # Save following
+            #save_to_mongodb('following', following_data, ['artist_id', 'snapshot_date'])
+            save_spotify_data('following', following_data)
+        
         # Recently Played
         results = sp.current_user_recently_played(limit=50)
         if results['items']:
-            # ... (data processing) ...
-            recent_tracks_prepared = [{"Track": item['track']['name'], "id": item['track']['id']} for item in results['items']] # Simplified
-            if not save_spotify_data('recently_played', recent_tracks_prepared): all_success = False
+            recent_tracks = []
+            for item in results['items']:
+                track = item['track']
+                played_at = item['played_at']
+                
+                # Convert UTC time to Rome time
+                utc_time = datetime.strptime(played_at, '%Y-%m-%dT%H:%M:%S.%fZ')
+                utc_time = utc_time.replace(tzinfo=pytz.UTC)
+                rome_tz = pytz.timezone('Europe/Rome')
+                rome_time = utc_time.astimezone(rome_tz)
+                played_at_local = rome_time.strftime('%Y-%m-%d %H:%M:%S')
+                
+                track_data = {
+                    'track_name': track['name'],
+                    'track_id': track['id'],
+                    'artist_name': track['artists'][0]['name'],
+                    'artist_id': track['artists'][0]['id'],
+                    'album_name': track['album']['name'],
+                    'album_id': track['album']['id'],
+                    'played_at': played_at,
+                    'played_at_local': played_at_local,
+                    'external_url': track['external_urls']['spotify'],
+                    'snapshot_date': datetime.now()
+                }
+                recent_tracks.append(track_data)
+            
+            # Save recently played
+            #save_to_mongodb('recently_played', recent_tracks, ['track_id', 'played_at'])
+            save_spotify_data('recently_played', recent_tracks)
         
-        # Add Playlists, Following etc. if needed
         
-        return all_success
+        return True
         
-    except spotipy.exceptions.SpotifyException as e:
-        st.sidebar.error(f"Spotify API error during data fetch for DB: {e}")
-        return False
     except Exception as e:
-        st.sidebar.error(f"Error fetching/saving data for DB: {e}")
+        st.sidebar.error(f"Error fetching data: {e}")
         return False
-
-
-if __name__ == "__main__":
-    main()
