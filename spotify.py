@@ -1,12 +1,14 @@
-# Updated spotify.py
+# Updated spotify.py with browser-based token management
 import streamlit as st
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import pandas as pd
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
-#from db_utils import save_to_mongodb  # Import from db_utils instead of webapp
+import json
+import base64
+from urllib.parse import parse_qs, urlparse
 
 # Spotify API credentials
 CLIENT_ID = st.secrets["spotify"]["client_id"]
@@ -14,73 +16,253 @@ CLIENT_SECRET = st.secrets["spotify"]["client_secret"]
 REDIRECT_URI = st.secrets["spotify"]["redirect_uri"]
 SCOPE = "user-read-private user-read-email user-top-read user-follow-read playlist-read-private user-read-recently-played"
 
-# Function to create Spotify OAuth client
-def get_spotify_oauth():
-    return SpotifyOAuth(
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI,
-        scope=SCOPE,
-        cache_path=".spotifycache"
-    )
-
-def connect_to_spotify():
-    try:
-        sp_oauth = get_spotify_oauth()
-        token_info = sp_oauth.get_cached_token()
-        
-        if not token_info:
-            auth_url = sp_oauth.get_authorize_url()
-            st.markdown(f"### Connect to Spotify")
-            st.write("Please click the button below to authorize this app to access your Spotify data:")
-            st.markdown(f"<a href='{auth_url}' target='_self'><button style='background-color:#1DB954; color:white; padding:10px 20px; border:none; border-radius:30px; font-weight:bold;'>Connect to Spotify</button></a>", unsafe_allow_html=True)
+class StreamlitSpotifyAuth:
+    def __init__(self):
+        self.client_id = CLIENT_ID
+        self.client_secret = CLIENT_SECRET
+        self.redirect_uri = REDIRECT_URI
+        self.scope = SCOPE
+        self.sp_oauth = SpotifyOAuth(
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+            redirect_uri=self.redirect_uri,
+            scope=self.scope,
+            cache_path=None  # Disable file caching
+        )
+    
+    def get_token_from_session(self):
+        """Get token from Streamlit session state"""
+        if 'spotify_token' in st.session_state:
+            token_info = st.session_state.spotify_token
             
-            # No need for manual code entry - we'll catch it in the callback
-            st.write("You'll be redirected back to this app automatically after authorization.")
+            # Check if token needs refresh
+            if self.is_token_expired(token_info):
+                return self.refresh_token(token_info)
+            
+            return token_info
+        return None
+    
+    def save_token_to_session(self, token_info):
+        """Save token to Streamlit session state"""
+        st.session_state.spotify_token = token_info
+    
+    def is_token_expired(self, token_info):
+        """Check if token is expired"""
+        if not token_info:
+            return True
+        
+        expires_at = token_info.get('expires_at', 0)
+        return time.time() > expires_at
+    
+    def refresh_token(self, token_info):
+        """Refresh the access token"""
+        try:
+            if 'refresh_token' in token_info:
+                new_token = self.sp_oauth.refresh_access_token(token_info['refresh_token'])
+                self.save_token_to_session(new_token)
+                return new_token
+        except Exception as e:
+            st.error(f"Error refreshing token: {e}")
+            # Clear invalid token
+            if 'spotify_token' in st.session_state:
+                del st.session_state.spotify_token
+        return None
+    
+    def get_auth_url(self):
+        """Get authorization URL"""
+        return self.sp_oauth.get_authorize_url()
+    
+    def get_token_from_code(self, code):
+        """Exchange authorization code for token"""
+        try:
+            token_info = self.sp_oauth.get_access_token(code)
+            self.save_token_to_session(token_info)
+            return token_info
+        except Exception as e:
+            st.error(f"Error getting token from code: {e}")
             return None
+
+# Alternative approach using URL parameters for token handling
+def handle_callback():
+    """Handle OAuth callback from URL parameters"""
+    query_params = st.experimental_get_query_params()
+    
+    if 'code' in query_params:
+        code = query_params['code'][0]
+        auth = StreamlitSpotifyAuth()
+        token_info = auth.get_token_from_code(code)
         
         if token_info:
-            return spotipy.Spotify(auth=token_info['access_token'])
+            st.success("Successfully authenticated with Spotify!")
+            # Clear URL parameters
+            st.experimental_set_query_params()
+            st.rerun()
+        else:
+            st.error("Failed to authenticate with Spotify.")
+    
+    elif 'error' in query_params:
+        error = query_params['error'][0]
+        st.error(f"Spotify authentication error: {error}")
+
+def connect_to_spotify():
+    """Connect to Spotify using browser-based auth"""
+    try:
+        # Handle OAuth callback first
+        handle_callback()
+        
+        auth = StreamlitSpotifyAuth()
+        token_info = auth.get_token_from_session()
+        
+        if not token_info:
+            st.markdown("### Connect to Spotify")
+            st.write("Please click the button below to authorize this app to access your Spotify data:")
+            
+            auth_url = auth.get_auth_url()
+            
+            # Create a more prominent button
+            st.markdown(f"""
+            <div style="text-align: center; margin: 20px 0;">
+                <a href="{auth_url}" target="_self" style="text-decoration: none;">
+                    <button style="
+                        background-color: #1DB954; 
+                        color: white; 
+                        padding: 15px 30px; 
+                        border: none; 
+                        border-radius: 50px; 
+                        font-weight: bold; 
+                        font-size: 16px;
+                        cursor: pointer;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                        transition: all 0.3s ease;
+                    " onmouseover="this.style.backgroundColor='#1ed760'" 
+                       onmouseout="this.style.backgroundColor='#1DB954'">
+                        🎵 Connect to Spotify
+                    </button>
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.info("You'll be redirected back to this app automatically after authorization.")
+            return None
+        
+        # Create Spotify client with valid token
+        return spotipy.Spotify(auth=token_info['access_token'])
     
     except Exception as e:
         st.error(f"Error connecting to Spotify: {e}")
         return None
+
+# Alternative: Using browser localStorage (requires JavaScript)
+def setup_browser_storage():
+    """Setup browser localStorage for token storage"""
+    st.markdown("""
+    <script>
+    // Function to save token to localStorage
+    function saveSpotifyToken(token) {
+        localStorage.setItem('spotify_token', JSON.stringify(token));
+    }
     
-# Main app function
+    // Function to get token from localStorage
+    function getSpotifyToken() {
+        const token = localStorage.getItem('spotify_token');
+        return token ? JSON.parse(token) : null;
+    }
+    
+    // Function to clear token from localStorage
+    function clearSpotifyToken() {
+        localStorage.removeItem('spotify_token');
+    }
+    
+    // Make functions globally available
+    window.spotifyAuth = {
+        saveToken: saveSpotifyToken,
+        getToken: getSpotifyToken,
+        clearToken: clearSpotifyToken
+    };
+    </script>
+    """, unsafe_allow_html=True)
+
+# Function to logout/clear token
+def logout_spotify():
+    """Clear Spotify authentication"""
+    if 'spotify_token' in st.session_state:
+        del st.session_state.spotify_token
+    st.success("Successfully logged out from Spotify!")
+    st.rerun()
+
+# Main app function with logout option
 def main():
-    sp = st.session_state.sp if 'sp' in st.session_state else connect_to_spotify()
+    # Setup browser storage
+    setup_browser_storage()
+    
+    # Add logout button in sidebar if authenticated
+    if 'spotify_token' in st.session_state:
+        st.sidebar.markdown("---")
+        if st.sidebar.button("🚪 Logout from Spotify", type="secondary"):
+            logout_spotify()
+    
+    sp = connect_to_spotify()
     
     if sp:
-        st.success("Successfully connected to Spotify!")
-        
-        # Create sidebar with options
-        st.sidebar.title("Navigation")
-        selection = st.sidebar.radio(
-            "Information",
-            ["Top Tracks", "Top Artists", "Recently Played"]
-        )
-        
-        # Display top tracks
-        if selection == "Top Tracks":
-            display_top_tracks(sp)
-        
-        # Display top artists
-        elif selection == "Top Artists":
-            display_top_artists(sp)
-
-        # Display recently played tracks
-        elif selection == "Recently Played":
-            display_recently_played(sp)
+        try:
+            # Test the connection
+            user = sp.current_user()
+            st.success(f"Successfully connected to Spotify! Welcome, {user['display_name']}!")
             
-        # Display playlists
-        #elif selection == "Playlists":
-        #    display_playlists(sp)
-        
-        # Display followed artists
-        #elif selection == "Following":
-        #    display_following(sp)
+            # Store user info in session
+            st.session_state.spotify_user = user
+            
+            # Create sidebar with options
+            st.sidebar.title("Navigation")
+            selection = st.sidebar.radio(
+                "Information",
+                ["Top Tracks", "Top Artists", "Recently Played"]
+            )
+            
+            # Display selected content
+            if selection == "Top Tracks":
+                display_top_tracks(sp)
+            elif selection == "Top Artists":
+                display_top_artists(sp)
+            elif selection == "Recently Played":
+                display_recently_played(sp)
+                
+        except spotipy.exceptions.SpotifyException as e:
+            st.error(f"Spotify API error: {e}")
+            if "token expired" in str(e).lower():
+                st.info("Your session has expired. Please reconnect to Spotify.")
+                if st.button("Reconnect to Spotify"):
+                    logout_spotify()
+        except Exception as e:
+            st.error(f"Unexpected error: {e}")
 
-# Function to display top tracks
+# Enhanced token validation
+def validate_spotify_connection(sp):
+    """Validate if Spotify connection is still valid"""
+    try:
+        sp.current_user()
+        return True
+    except spotipy.exceptions.SpotifyException:
+        return False
+    except Exception:
+        return False
+
+# Token refresh mechanism
+def ensure_valid_token(sp):
+    """Ensure token is valid, refresh if needed"""
+    if not validate_spotify_connection(sp):
+        auth = StreamlitSpotifyAuth()
+        token_info = auth.get_token_from_session()
+        
+        if token_info:
+            refreshed_token = auth.refresh_token(token_info)
+            if refreshed_token:
+                return spotipy.Spotify(auth=refreshed_token['access_token'])
+        
+        return None
+    return sp
+
+# Your existing display functions remain the same...
 def display_top_tracks(sp):
     st.header("Your Top Tracks")
     
@@ -93,6 +275,12 @@ def display_top_tracks(sp):
             "long_term": "All Time"
         }[x]
     )
+    
+    # Ensure valid token before API call
+    sp = ensure_valid_token(sp)
+    if not sp:
+        st.error("Authentication expired. Please reconnect.")
+        return
     
     top_tracks = sp.current_user_top_tracks(limit=50, time_range=time_range)
     
@@ -133,7 +321,7 @@ def display_top_tracks(sp):
                 st.audio(item['Preview'])
             st.markdown(f"[Open in Spotify]({item['Spotify Link']})")
             st.write("---")
-
+            
 # Function to display top artists
 def display_top_artists(sp):
     st.header("Your Top Artists")
