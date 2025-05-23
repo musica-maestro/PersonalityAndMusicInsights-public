@@ -1,4 +1,4 @@
-# Updated spotify.py with browser-based token management
+# Updated spotify.py with browser-based token management and forced login
 import streamlit as st
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -27,7 +27,8 @@ class StreamlitSpotifyAuth:
             client_secret=self.client_secret,
             redirect_uri=self.redirect_uri,
             scope=self.scope,
-            cache_path=".cache"  # Use a cache path - will be managed by session state
+            cache_path=".cache",  # Use a cache path - will be managed by session state
+            show_dialog=True  # Force login dialog even if user is logged in
         )
     
     def get_token_from_session(self):
@@ -69,8 +70,15 @@ class StreamlitSpotifyAuth:
         return None
     
     def get_auth_url(self):
-        """Get authorization URL"""
-        return self.sp_oauth.get_authorize_url()
+        """Get authorization URL with forced login"""
+        # Get the base auth URL
+        auth_url = self.sp_oauth.get_authorize_url()
+        
+        # Add show_dialog=true to force login even if user is already logged in
+        separator = "&" if "?" in auth_url else "?"
+        auth_url_with_dialog = f"{auth_url}{separator}show_dialog=true"
+        
+        return auth_url_with_dialog
     
     def get_token_from_code(self, code):
         """Exchange authorization code for token"""
@@ -83,13 +91,14 @@ class StreamlitSpotifyAuth:
             return None
 
 def get_spotify_oauth():
-    """Function to get SpotifyOAuth instance - this was missing!"""
+    """Function to get SpotifyOAuth instance"""
     return SpotifyOAuth(
         client_id=CLIENT_ID,
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        cache_path=".cache"  # Use a cache path - will be ignored in our implementation
+        cache_path=".cache",
+        show_dialog=True  # Force login dialog
     )
 
 def get_spotify_client():
@@ -116,7 +125,10 @@ def handle_callback():
     
     elif 'error' in query_params:
         error = query_params['error']
-        st.error(f"Spotify authentication error: {error}")
+        if error == "access_denied":
+            st.warning("Spotify authentication was cancelled. Please try again if you want to connect.")
+        else:
+            st.error(f"Spotify authentication error: {error}")
 
 def connect_to_spotify():
     """Connect to Spotify using browser-based auth"""
@@ -130,10 +142,11 @@ def connect_to_spotify():
         if not token_info:
             st.markdown("### Connect to Spotify")
             st.write("Please click the button below to authorize this app to access your Spotify data:")
+            st.info("📝 **Note**: You'll be asked to log in to your Spotify account if you're not already logged in.")
             
             auth_url = auth.get_auth_url()
             
-            # Create a more prominent button
+            # Create a more prominent button with clearer instructions
             st.markdown(f"""
             <div style="text-align: center; margin: 20px 0;">
                 <a href="{auth_url}" target="_self" style="text-decoration: none;">
@@ -156,7 +169,14 @@ def connect_to_spotify():
             </div>
             """, unsafe_allow_html=True)
             
-            st.info("You'll be redirected back to this app automatically after authorization.")
+            st.markdown("""
+            **What happens next:**
+            1. You'll be redirected to Spotify's login page
+            2. Log in with your Spotify credentials
+            3. Authorize this app to access your data
+            4. You'll be automatically redirected back here
+            """)
+            
             return None
         
         # Create Spotify client with valid token
@@ -618,7 +638,7 @@ def fetch_and_save_all_data(sp):
             following_data = []
             for i, artist in enumerate(following['artists']['items'], 1):
                 genres = ", ".join(artist['genres']) if artist['genres'] else "Not specified"
-                image_url = artist['images'][0]['url'] if artist['images'] else None
+                image_url = artist['images'][0]['url'] if artist['artists'] else None
                 
                 following_data.append({
                     "Rank": i,
