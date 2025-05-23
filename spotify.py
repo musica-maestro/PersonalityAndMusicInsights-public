@@ -1,11 +1,14 @@
 import streamlit as st
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.cache_handler import CacheFileHandler
 import pandas as pd
 import time
 from datetime import datetime
 import pytz
 import urllib.parse
+import uuid
+import os
 
 # Spotify API credentials
 CLIENT_ID = st.secrets["spotify"]["client_id"]
@@ -13,14 +16,28 @@ CLIENT_SECRET = st.secrets["spotify"]["client_secret"]
 REDIRECT_URI = st.secrets["spotify"]["redirect_uri"]
 SCOPE = "user-read-private user-read-email user-top-read user-follow-read playlist-read-private user-read-recently-played"
 
+# Create a directory for cache files if it doesn't exist
+CACHE_DIR = ".spotify_caches"
+if not os.path.exists(CACHE_DIR):
+    os.makedirs(CACHE_DIR)
+
 # Function to create Spotify OAuth client
 def get_spotify_oauth():
+    # Generate a unique cache path for each session
+    if 'session_id' not in st.session_state:
+        st.session_state.session_id = str(uuid.uuid4())
+    
+    cache_path = os.path.join(CACHE_DIR, f"cache-{st.session_state.session_id}")
+    cache_handler = CacheFileHandler(cache_path=cache_path)
+    
     return SpotifyOAuth(
         client_id=CLIENT_ID,
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        cache_path=None  # Disable file cache
+        cache_handler=cache_handler,
+        show_dialog=True,  # Force re-authentication when needed
+        open_browser=False  # Prevent automatic browser opening
     )
 
 def redirect_to_spotify_auth():
