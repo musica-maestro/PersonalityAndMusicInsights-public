@@ -82,6 +82,20 @@ class StreamlitSpotifyAuth:
             st.error(f"Error getting token from code: {e}")
             return None
 
+def get_spotify_oauth():
+    """Function to get SpotifyOAuth instance - this was missing!"""
+    return SpotifyOAuth(
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        redirect_uri=REDIRECT_URI,
+        scope=SCOPE,
+        cache_path=None  # Disable file caching for Streamlit
+    )
+
+def get_spotify_client():
+    """Get authenticated Spotify client"""
+    return connect_to_spotify()
+
 # Alternative approach using URL parameters for token handling
 def handle_callback():
     """Handle OAuth callback from URL parameters"""
