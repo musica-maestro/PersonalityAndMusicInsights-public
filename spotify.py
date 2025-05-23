@@ -130,8 +130,9 @@ def connect_to_spotify():
             st.markdown("### Connect to Spotify")
             st.write("Please click the button below to authorize this app to access your Spotify data:")
             
-            #auth_url = auth.get_auth_url()
-            auth_url = auth.get_auth_url() + "&show_dialog=true"
+            auth_url = auth.get_auth_url()
+            #auth_url = auth.get_auth_url() + "&show_dialog=true"
+            #st.write(auth_url)
 
             
             # Create a more prominent button
