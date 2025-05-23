@@ -138,7 +138,6 @@ def display_big5_results(scores):
         # Metrics for each trait
         for trait, score in scores.items():
             st.metric(trait, f"{score:.2f}/5")
-            #st.metric(trait[:12], f"{score:.2f}/5")  # Truncate long trait names
         
         st.markdown("</div>", unsafe_allow_html=True)
     

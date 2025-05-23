@@ -106,6 +106,40 @@ def display_demographics_form():
             ],
             placeholder="Select all that apply"
         )
+
+        # spotify premium
+        premium=st.selectbox(
+            "Do you have the premium version of spotify?",
+            options=[
+                "Prefer not to say",
+                "Yes",
+                "No"
+            ],
+        )
+
+        # payment for spotify
+        payed=st.selectbox(
+            "Do you pay for the premium version of spotify?",
+            options=[
+                "Prefer not to say",
+                "Yes",
+                "No"
+            ],
+        )
+
+
+        listening_places = st.multiselect(
+            "You listen to music while:",
+            options=[
+                "Prefer not to say",
+                "Studying",
+                "Working",
+                "Traveling",
+                "Driving",
+                "Relaxing"
+            ],
+            placeholder="Select all that apply"
+        )
         
         # Listening habits
         listening_hours = st.slider(
