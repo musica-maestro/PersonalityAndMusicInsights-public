@@ -113,7 +113,8 @@ def display_demographics_form():
             options=[
                 "Prefer not to say",
                 "Yes",
-                "No"
+                "No",
+                "I don't know"
             ],
         )
 
@@ -123,12 +124,25 @@ def display_demographics_form():
             options=[
                 "Prefer not to say",
                 "Yes",
-                "No"
+                "No",
+                "I don't know"
             ],
         )
 
+        device = st.selectbox(
+            "What is the device you listen to music on the most?",
+            options=[
+                "Prefer not to say",
+                "Smartphone",
+                "Computer",
+                "Tablet",
+                "Smart speaker (e.g., Amazon Echo)",
+                "Car stereo",
+                "Other"
+            ],
+        )
 
-        listening_places = st.multiselect(
+        listening_moments = st.multiselect(
             "You listen to music while:",
             options=[
                 "Prefer not to say",
