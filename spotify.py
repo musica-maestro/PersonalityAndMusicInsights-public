@@ -20,7 +20,9 @@ def get_spotify_oauth():
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        cache_path=None  # Disable file cache
+        cache_path=None,  # Disable file cache
+        show_dialog=False,  # Don't force re-authorization
+        open_browser=False  # Don't auto-open browser (handled by Streamlit)
     )
 
 def connect_to_spotify():
@@ -50,6 +52,18 @@ def connect_to_spotify():
         
         # Check if we're returning from Spotify authorization
         query_params = st.query_params
+        
+        # Handle authorization error (user denied access)
+        if 'error' in query_params:
+            error = query_params['error']
+            if error == 'access_denied':
+                st.warning("⚠️ Authorization was denied. You need to grant access to use this app.")
+                st.info("Please try connecting again and click 'Agree' on Spotify's authorization page.")
+            else:
+                st.error(f"Authorization error: {error}")
+            return None
+        
+        # Handle successful authorization
         if 'code' in query_params:
             auth_code = query_params['code']
             try:
@@ -60,21 +74,80 @@ def connect_to_spotify():
                     st.session_state.spotify_token_info = token_info
                     # Clear the URL parameters and rerun
                     st.query_params.clear()
+                    st.success("Successfully connected to Spotify!")
                     st.rerun()
             except Exception as e:
                 st.error(f"Error getting access token: {e}")
+                st.info("Please try connecting again.")
                 return None
         
         # If no token, show authorization link
         auth_url = sp_oauth.get_authorize_url()
-        st.markdown("### Connect to Spotify")
-        st.write("Please click the button below to authorize this app to access your Spotify data:")
-        st.markdown(f'<a href="{auth_url}" target="_self"><button style="background-color: #1DB954; color: white; padding: 12px 24px; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; text-decoration: none;">🎵 Connect to Spotify</button></a>', unsafe_allow_html=True)
-        st.write("You'll be redirected back to this app automatically after authorization.")
+        st.markdown("### 🎵 Connect to Spotify")
+        st.write("To view your Spotify data, you need to authorize this app:")
+        
+        # Show important notes
+        st.info("""
+        📋 **What you need to know:**
+        - You'll be redirected to Spotify's secure login page
+        - Click **"Agree"** on Spotify's authorization page to continue
+        - You'll be automatically redirected back here
+        - Your Spotify credentials are never stored by this app
+        """)
+        
+        # Create authorization button
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown(f"""
+            <div style="text-align: center; margin: 20px 0;">
+                <a href="{auth_url}" target="_self" style="text-decoration: none;">
+                    <button style="
+                        background: linear-gradient(45deg, #1DB954, #1ed760);
+                        color: white;
+                        padding: 15px 30px;
+                        border: none;
+                        border-radius: 50px;
+                        font-size: 18px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        box-shadow: 0 4px 15px rgba(29, 185, 84, 0.3);
+                        transition: all 0.3s ease;
+                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(29, 185, 84, 0.4)';" 
+                       onmouseout="this.style.transform='translateY(0px)'; this.style.boxShadow='0 4px 15px rgba(29, 185, 84, 0.3)';">
+                        🔗 Connect to Spotify
+                    </button>
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Troubleshooting section
+        with st.expander("🔧 Having trouble connecting?"):
+            st.write("""
+            **Common solutions:**
+            1. **Make sure you're logged into Spotify** in this browser
+            2. **Check your popup blocker** - it might be blocking the redirect
+            3. **Clear your browser cache** and try again
+            4. **Use a different browser** if the issue persists
+            5. **Make sure the redirect URI is correctly configured** in your Spotify app settings
+            
+            **If you see "Connection denied":**
+            - This usually means the redirect URI doesn't match what's configured in your Spotify app
+            - Contact the app administrator if this persists
+            """)
+        
         return None
         
     except Exception as e:
         st.error(f"Error connecting to Spotify: {e}")
+        # Show more detailed error information
+        with st.expander("🔍 Error Details"):
+            st.code(str(e))
+            st.write("""
+            This error might be caused by:
+            - Incorrect Spotify app configuration
+            - Network connectivity issues
+            - Invalid client credentials
+            """)
         return None
 
 # Main app function
