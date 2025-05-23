@@ -11,8 +11,113 @@ from db_utils import get_mongo_client, generate_user_id
 st.set_page_config(
     page_title="Personality & Music Insights",
     page_icon="🎵",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
+
+# Force light theme using custom CSS
+def force_light_theme():
+    st.markdown("""
+    <style>
+    /* Force light theme colors */
+    .stApp {
+        background-color: white !important;
+        color: black !important;
+    }
+    
+    /* Main content area */
+    .main .block-container {
+        background-color: white !important;
+        color: black !important;
+    }
+    
+    /* Sidebar */
+    .css-1d391kg {
+        background-color: #f0f2f6 !important;
+    }
+    
+    /* Text elements */
+    .stMarkdown, .stText, p, h1, h2, h3, h4, h5, h6 {
+        color: black !important;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background-color: #ff4b4b !important;
+        color: white !important;
+        border: none !important;
+    }
+    
+    .stButton > button:hover {
+        background-color: #e03e3e !important;
+        color: white !important;
+    }
+    
+    /* Input fields */
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > select,
+    .stTextArea > div > div > textarea {
+        background-color: white !important;
+        color: black !important;
+        border: 1px solid #cccccc !important;
+    }
+    
+    /* Progress bars */
+    .stProgress > div > div > div {
+        background-color: #ff4b4b !important;
+    }
+    
+    /* Metrics */
+    .metric-container {
+        background-color: white !important;
+        color: black !important;
+    }
+    
+    /* Columns */
+    .element-container {
+        background-color: transparent !important;
+    }
+    
+    /* Info/Warning/Error boxes */
+    .stAlert {
+        background-color: white !important;
+        color: black !important;
+        border: 1px solid #cccccc !important;
+    }
+    
+    /* Tables */
+    .stDataFrame {
+        background-color: white !important;
+        color: black !important;
+    }
+    
+    /* Hide theme toggle if it exists */
+    .stAppViewMain > div > div > div:nth-child(1) > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) > div:nth-child(2) > div:nth-child(1) {
+        display: none !important;
+    }
+    
+    /* Additional selectors for theme toggle hiding */
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+    
+    /* Ensure all text is readable */
+    * {
+        color: black !important;
+    }
+    
+    /* Exception for buttons and special elements that should have different colors */
+    .stButton > button,
+    .stButton > button *,
+    .stProgress > div > div > div,
+    .stProgress > div > div > div * {
+        color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Apply the theme at the start of the app
+force_light_theme()
 
 # Import modules from files
 def import_module_from_file(file_path, module_name):
@@ -171,6 +276,8 @@ def collect_spotify_data(sp, status_placeholder):
 
 # Main app flow
 def main():
+    # Apply theme on every rerun to ensure it persists
+    force_light_theme()
 
     query_params = st.query_params
     
