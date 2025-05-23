@@ -85,23 +85,23 @@ class StreamlitSpotifyAuth:
 # Alternative approach using URL parameters for token handling
 def handle_callback():
     """Handle OAuth callback from URL parameters"""
-    query_params = st.experimental_get_query_params()
+    query_params = st.query_params
     
     if 'code' in query_params:
-        code = query_params['code'][0]
+        code = query_params['code']
         auth = StreamlitSpotifyAuth()
         token_info = auth.get_token_from_code(code)
         
         if token_info:
             st.success("Successfully authenticated with Spotify!")
             # Clear URL parameters
-            st.experimental_set_query_params()
+            st.query_params.clear()
             st.rerun()
         else:
             st.error("Failed to authenticate with Spotify.")
     
     elif 'error' in query_params:
-        error = query_params['error'][0]
+        error = query_params['error']
         st.error(f"Spotify authentication error: {error}")
 
 def connect_to_spotify():
@@ -321,7 +321,7 @@ def display_top_tracks(sp):
                 st.audio(item['Preview'])
             st.markdown(f"[Open in Spotify]({item['Spotify Link']})")
             st.write("---")
-            
+
 # Function to display top artists
 def display_top_artists(sp):
     st.header("Your Top Artists")
