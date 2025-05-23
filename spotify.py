@@ -45,16 +45,34 @@ def redirect_to_spotify_auth():
     sp_oauth = get_spotify_oauth()
     auth_url = sp_oauth.get_authorize_url()
     
-    # Use JavaScript to redirect immediately
-    st.markdown(f"""
-    <script>
-        window.location.href = "{auth_url}";
-    </script>
+    # Create a button that will open Spotify auth in a new window
+    st.markdown("""
+    <style>
+    .spotify-auth-button {
+        background-color: #1DB954;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 20px;
+        text-decoration: none;
+        font-weight: bold;
+        display: inline-block;
+        margin: 10px 0;
+    }
+    </style>
     """, unsafe_allow_html=True)
     
-    # Fallback message in case JavaScript doesn't work
-    st.info("Redirecting to Spotify authorization...")
-    st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
+    # Display the auth button
+    st.markdown(f"""
+    <a href="{auth_url}" target="_blank" class="spotify-auth-button">
+        Connect with Spotify
+    </a>
+    """, unsafe_allow_html=True)
+    
+    # Instructions for the user
+    st.info("Click the button above to connect your Spotify account. After authorizing, you'll be redirected back to this app.")
+    
+    # Store the auth URL in session state for later use
+    st.session_state.spotify_auth_url = auth_url
 
 def connect_to_spotify():
     try:
