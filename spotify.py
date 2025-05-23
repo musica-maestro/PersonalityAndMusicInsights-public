@@ -20,10 +20,24 @@ def get_spotify_oauth():
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        cache_path=None,  # Disable file cache
-        show_dialog=False,  # Don't force re-authorization
-        open_browser=False  # Don't auto-open browser (handled by Streamlit)
+        cache_path=None  # Disable file cache
     )
+
+def redirect_to_spotify_auth():
+    """Redirect user to Spotify authorization page"""
+    sp_oauth = get_spotify_oauth()
+    auth_url = sp_oauth.get_authorize_url()
+    
+    # Use JavaScript to redirect immediately
+    st.markdown(f"""
+    <script>
+        window.location.href = "{auth_url}";
+    </script>
+    """, unsafe_allow_html=True)
+    
+    # Fallback message in case JavaScript doesn't work
+    st.info("Redirecting to Spotify authorization...")
+    st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_url}">', unsafe_allow_html=True)
 
 def connect_to_spotify():
     try:
@@ -35,35 +49,21 @@ def connect_to_spotify():
             
             # Check if token is expired and refresh if needed
             if sp_oauth.is_token_expired(token_info):
-                st.info("Token expired, refreshing...")
                 try:
                     token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
                     st.session_state.spotify_token_info = token_info
-                    st.success("Token refreshed successfully!")
-                except Exception as e:
-                    st.error(f"Error refreshing token: {e}")
-                    # Clear the session state and restart auth
+                except Exception:
+                    # If refresh fails, redirect to Spotify auth
                     if 'spotify_token_info' in st.session_state:
                         del st.session_state.spotify_token_info
-                    st.rerun()
+                    redirect_to_spotify_auth()
+                    return None
             
             # Create and return Spotify client
             return spotipy.Spotify(auth=token_info['access_token'])
         
         # Check if we're returning from Spotify authorization
         query_params = st.query_params
-        
-        # Handle authorization error (user denied access)
-        if 'error' in query_params:
-            error = query_params['error']
-            if error == 'access_denied':
-                st.warning("⚠️ Authorization was denied. You need to grant access to use this app.")
-                st.info("Please try connecting again and click 'Agree' on Spotify's authorization page.")
-            else:
-                st.error(f"Authorization error: {error}")
-            return None
-        
-        # Handle successful authorization
         if 'code' in query_params:
             auth_code = query_params['code']
             try:
@@ -74,80 +74,23 @@ def connect_to_spotify():
                     st.session_state.spotify_token_info = token_info
                     # Clear the URL parameters and rerun
                     st.query_params.clear()
-                    st.success("Successfully connected to Spotify!")
                     st.rerun()
-            except Exception as e:
-                st.error(f"Error getting access token: {e}")
-                st.info("Please try connecting again.")
+                else:
+                    # If token exchange fails, redirect to auth
+                    redirect_to_spotify_auth()
+                    return None
+            except Exception:
+                # If any error during token exchange, redirect to auth
+                redirect_to_spotify_auth()
                 return None
         
-        # If no token, show authorization link
-        auth_url = sp_oauth.get_authorize_url()
-        st.markdown("### 🎵 Connect to Spotify")
-        st.write("To view your Spotify data, you need to authorize this app:")
-        
-        # Show important notes
-        st.info("""
-        📋 **What you need to know:**
-        - You'll be redirected to Spotify's secure login page
-        - Click **"Agree"** on Spotify's authorization page to continue
-        - You'll be automatically redirected back here
-        - Your Spotify credentials are never stored by this app
-        """)
-        
-        # Create authorization button
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.markdown(f"""
-            <div style="text-align: center; margin: 20px 0;">
-                <a href="{auth_url}" target="_self" style="text-decoration: none;">
-                    <button style="
-                        background: linear-gradient(45deg, #1DB954, #1ed760);
-                        color: white;
-                        padding: 15px 30px;
-                        border: none;
-                        border-radius: 50px;
-                        font-size: 18px;
-                        font-weight: bold;
-                        cursor: pointer;
-                        box-shadow: 0 4px 15px rgba(29, 185, 84, 0.3);
-                        transition: all 0.3s ease;
-                    " onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(29, 185, 84, 0.4)';" 
-                       onmouseout="this.style.transform='translateY(0px)'; this.style.boxShadow='0 4px 15px rgba(29, 185, 84, 0.3)';">
-                        🔗 Connect to Spotify
-                    </button>
-                </a>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Troubleshooting section
-        with st.expander("🔧 Having trouble connecting?"):
-            st.write("""
-            **Common solutions:**
-            1. **Make sure you're logged into Spotify** in this browser
-            2. **Check your popup blocker** - it might be blocking the redirect
-            3. **Clear your browser cache** and try again
-            4. **Use a different browser** if the issue persists
-            5. **Make sure the redirect URI is correctly configured** in your Spotify app settings
-            
-            **If you see "Connection denied":**
-            - This usually means the redirect URI doesn't match what's configured in your Spotify app
-            - Contact the app administrator if this persists
-            """)
-        
+        # If no token and no code, redirect to Spotify auth
+        redirect_to_spotify_auth()
         return None
         
-    except Exception as e:
-        st.error(f"Error connecting to Spotify: {e}")
-        # Show more detailed error information
-        with st.expander("🔍 Error Details"):
-            st.code(str(e))
-            st.write("""
-            This error might be caused by:
-            - Incorrect Spotify app configuration
-            - Network connectivity issues
-            - Invalid client credentials
-            """)
+    except Exception:
+        # For any connection error, redirect to Spotify auth
+        redirect_to_spotify_auth()
         return None
 
 # Main app function
@@ -190,16 +133,16 @@ def main():
             elif selection == "Recently Played":
                 display_recently_played(sp)
                 
-        except Exception as e:
-            st.error(f"Error with Spotify connection: {e}")
-            # Clear session state and reconnect
+        except Exception:
+            # If any error with the Spotify client, redirect to auth
             if 'spotify_token_info' in st.session_state:
                 del st.session_state.spotify_token_info
             if 'sp' in st.session_state:
                 del st.session_state.sp
-            st.rerun()
+            redirect_to_spotify_auth()
     else:
-        st.info("Please connect to Spotify to view your music data.")
+        # This will be handled by the redirect in connect_to_spotify()
+        st.info("Connecting to Spotify...")
 
 # Function to display top tracks
 def display_top_tracks(sp):
@@ -214,7 +157,12 @@ def display_top_tracks(sp):
         }[x]
     )
     
-    top_tracks = sp.current_user_top_tracks(limit=50, time_range=time_range)
+    try:
+        top_tracks = sp.current_user_top_tracks(limit=50, time_range=time_range)
+    except Exception:
+        # If API call fails, redirect to auth
+        redirect_to_spotify_auth()
+        return
     
     if not top_tracks['items']:
         st.info("No top tracks found for this time period.")
@@ -267,7 +215,12 @@ def display_top_artists(sp):
         }[x]
     )
     
-    top_artists = sp.current_user_top_artists(limit=50, time_range=time_range)
+    try:
+        top_artists = sp.current_user_top_artists(limit=50, time_range=time_range)
+    except Exception:
+        # If API call fails, redirect to auth
+        redirect_to_spotify_auth()
+        return
     
     if not top_artists['items']:
         st.info("No top artists found for this time period.")
@@ -306,7 +259,13 @@ def display_top_artists(sp):
 # Function to display recently played tracks
 def display_recently_played(sp):
     st.header("Your Recently Played Tracks")
-    results = sp.current_user_recently_played(limit=50)
+    
+    try:
+        results = sp.current_user_recently_played(limit=50)
+    except Exception:
+        # If API call fails, redirect to auth
+        redirect_to_spotify_auth()
+        return
     
     if not results['items']:
         st.info("No recently played tracks found.")
