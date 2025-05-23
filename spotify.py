@@ -1,4 +1,3 @@
-# Updated spotify.py with browser-based token management
 import streamlit as st
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -68,9 +67,9 @@ class StreamlitSpotifyAuth:
                 del st.session_state.spotify_token
         return None
     
-    def get_auth_url(self, show_dialog=False):
+    def get_auth_url(self):
         """Get authorization URL"""
-        return self.sp_oauth.get_authorize_url(show_dialog=show_dialog)
+        return self.sp_oauth.get_authorize_url()
     
     def get_token_from_code(self, code):
         """Exchange authorization code for token"""
@@ -119,29 +118,7 @@ def handle_callback():
         st.error(f"Spotify authentication error: {error}")
 
 def connect_to_spotify():
-    """
-    Connects to Spotify using the OAuth 2.0 Authorization Code Flow.
-    This is the standard and secure method for web applications.
-
-    How it works:
-    1. Check for an existing token in the session state.
-    2. If no token exists, generate a unique authorization URL for the user.
-       - We add `show_dialog=True` to the URL generation. This is the key change
-         to address the user's request. It ensures that Spotify will always
-         prompt the user to log in and then grant permissions, even if they
-         have previously authorized the app. This allows a user to log in
-         freshly if they are not logged into Spotify in their browser, or to
-         switch accounts if they are already logged in.
-    3. The user clicks a button, is redirected to Spotify's login/consent page.
-    4. After logging in and approving, Spotify redirects them back to this app.
-    5. The `handle_callback()` function catches the redirect, exchanges the
-       authorization code for an access token, and saves it to the session.
-    6. The app now has an authenticated client to make API calls.
-
-    Note: It is not possible to create a username/password login form directly
-    within the Streamlit app. This is by design for security (OAuth). The user
-    must always enter their credentials on the official spotify.com domain.
-    """
+    """Connect to Spotify using browser-based auth"""
     try:
         # Handle OAuth callback first
         handle_callback()
@@ -153,10 +130,7 @@ def connect_to_spotify():
             st.markdown("### Connect to Spotify")
             st.write("Please click the button below to authorize this app to access your Spotify data:")
             
-            # By setting show_dialog=True, we force the Spotify login and authorization
-            # screen to appear every time. This ensures that a user who is not logged
-            # into Spotify in their browser will be prompted to do so.
-            auth_url = auth.get_auth_url(show_dialog=True)
+            auth_url = auth.get_auth_url()
             
             # Create a more prominent button
             st.markdown(f"""
@@ -181,7 +155,7 @@ def connect_to_spotify():
             </div>
             """, unsafe_allow_html=True)
             
-            st.info("You'll be redirected to the official Spotify login page and then back to this app automatically.")
+            st.info("You'll be redirected back to this app automatically after authorization.")
             return None
         
         # Create Spotify client with valid token
