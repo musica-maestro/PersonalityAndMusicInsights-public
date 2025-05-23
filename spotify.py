@@ -27,7 +27,7 @@ class StreamlitSpotifyAuth:
             client_secret=self.client_secret,
             redirect_uri=self.redirect_uri,
             scope=self.scope,
-            cache_path=None  # Disable file caching
+            cache_path=".cache"  # Use a cache path - will be managed by session state
         )
     
     def get_token_from_session(self):
@@ -89,7 +89,7 @@ def get_spotify_oauth():
         client_secret=CLIENT_SECRET,
         redirect_uri=REDIRECT_URI,
         scope=SCOPE,
-        cache_path=None  # Disable file caching for Streamlit
+        cache_path=".cache"  # Use a cache path - will be ignored in our implementation
     )
 
 def get_spotify_client():
