@@ -180,7 +180,6 @@ def display_demographics_form():
                 "payed": payed,
                 "listening_moments": listening_moments,
                 "device": device,
-
                 "listening_hours": listening_hours,
                 "submission_timestamp": datetime.now()
             }

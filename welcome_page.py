@@ -15,16 +15,16 @@ def welcome_page():
         # Main welcome message
         st.markdown("""
         We are a research team from Roma Tre University's AI Research Lab. 
-        Our goal is to provide you with personalized movie recommendations based on your preferences.
+        Our goal is to explore the connection between personality traits and musical preferences.
         """)
         
         # How it works section
         st.subheader("How does it work?")
         st.markdown("""
-        1. Access to your spotify account
-        2. Answer a few personal questions about yourself
-        3. Answer a few questions about your personality
-        4. Have a visual of your big5 personality traits and your spotify data
+        1. Connect your Spotify account
+        2. Provide a few personal details
+        3. Answer some questions about your personality
+        4. View a visual representation of your Big Five personality traits alongside your Spotify data
         """)
         
         # Contact information
