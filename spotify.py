@@ -414,6 +414,56 @@ def fetch_and_save_all_data(sp):
                 
                 save_spotify_data('top_artists_'+time_range, artists_data)
         
+        # Playlists
+        playlists = sp.current_user_playlists(limit=50)
+        if playlists['items']:
+            playlists_data = []
+            for i, playlist in enumerate(playlists['items'], 1):
+                owner = playlist['owner']['display_name']
+                is_own = playlist['owner']['id'] == sp.current_user()['id']
+                image_url = playlist['images'][0]['url'] if playlist['images'] else None
+                
+                playlists_data.append({
+                    "Rank": i,
+                    "Name": playlist['name'],
+                    "Tracks": playlist['tracks']['total'],
+                    "Owner": "You" if is_own else owner,
+                    "Public": "Yes" if playlist['public'] else "No",
+                    "Collaborative": "Yes" if playlist['collaborative'] else "No",
+                    "Spotify Link": playlist['external_urls']['spotify'],
+                    "Image": image_url,
+                    "playlist_id": playlist['id'],
+                    "snapshot_date": datetime.now()
+                })
+            
+            # Save playlists
+            #save_to_mongodb('playlists', playlists_data, ['playlist_id', 'snapshot_date'])
+            save_spotify_data('playlists', playlists_data)
+        
+        # Following
+        following = sp.current_user_followed_artists(limit=50)
+        if following['artists']['items']:
+            following_data = []
+            for i, artist in enumerate(following['artists']['items'], 1):
+                genres = ", ".join(artist['genres']) if artist['genres'] else "Not specified"
+                image_url = artist['images'][0]['url'] if artist['images'] else None
+                
+                following_data.append({
+                    "Rank": i,
+                    "Artist": artist['name'],
+                    "Genres": genres,
+                    "Popularity": artist['popularity'],
+                    "Followers": artist['followers']['total'],
+                    "Spotify Link": artist['external_urls']['spotify'],
+                    "Image": image_url,
+                    "artist_id": artist['id'],
+                    "snapshot_date": datetime.now()
+                })
+            
+            # Save following
+            #save_to_mongodb('following', following_data, ['artist_id', 'snapshot_date'])
+            save_spotify_data('following', following_data)
+        
         # Recently Played
         results = sp.current_user_recently_played(limit=50)
         if results['items']:
