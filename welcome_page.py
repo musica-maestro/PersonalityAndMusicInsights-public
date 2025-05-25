@@ -18,19 +18,6 @@ def welcome_page():
         Our goal is to explore the connection between personality traits and musical preferences.
         """)
         
-        # Privacy Notice Section
-        st.info("🔒 **Privacy & Data Protection**")
-        st.markdown("""
-        <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
-        <strong>We respect your privacy:</strong><br>
-        • All data collected is completely anonymous<br>
-        • We cannot identify who you are from the data<br>
-        • Your responses are used solely for academic research purposes<br>
-        • No personal identifying information is stored or shared<br>
-        • You can withdraw from the study at any time
-        </div>
-        """, unsafe_allow_html=True)
-        
         # How it works section
         st.subheader("How does it work?")
         st.markdown("""
@@ -38,6 +25,14 @@ def welcome_page():
         2. Provide a few personal details
         3. Answer some questions about your personality
         4. View a visual representation of your Big Five personality traits alongside your Spotify data
+        """)
+        
+        # Privacy Notice Section
+        st.subheader("Privacy & Data Protection:")
+        st.markdown("""
+        We respect your privacy. All data collected is completely anonymous and we cannot identify who you are from the data. 
+        Your responses are used solely for academic research purposes. No personal identifying information is stored or shared, 
+        and you can withdraw from the study at any time.
         """)
         
         # Contact information
