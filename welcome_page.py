@@ -18,6 +18,19 @@ def welcome_page():
         Our goal is to explore the connection between personality traits and musical preferences.
         """)
         
+        # Privacy Notice Section
+        st.info("🔒 **Privacy & Data Protection**")
+        st.markdown("""
+        <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
+        <strong>We respect your privacy:</strong><br>
+        • All data collected is completely anonymous<br>
+        • We cannot identify who you are from the data<br>
+        • Your responses are used solely for academic research purposes<br>
+        • No personal identifying information is stored or shared<br>
+        • You can withdraw from the study at any time
+        </div>
+        """, unsafe_allow_html=True)
+        
         # How it works section
         st.subheader("How does it work?")
         st.markdown("""
