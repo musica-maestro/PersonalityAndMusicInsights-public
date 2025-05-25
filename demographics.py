@@ -13,6 +13,7 @@ def display_demographics_form():
             "Age Range",
             options=[
                 "Prefer not to say",
+                "Under 18",
                 "18-26", 
                 "27-36", 
                 "37-50", 
