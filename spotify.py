@@ -312,8 +312,22 @@ def display_recently_played(sp):
         track = item['track']
         played_at = item['played_at']
         
-        # Convert UTC time to Rome time
-        utc_time = datetime.strptime(played_at, '%Y-%m-%dT%H:%M:%S.%fZ')
+        # Convert UTC time to Rome time with flexible parsing
+        try:
+            # Try parsing with microseconds first
+            if '.' in played_at:
+                utc_time = datetime.strptime(played_at, '%Y-%m-%dT%H:%M:%S.%fZ')
+            else:
+                # Parse without microseconds
+                utc_time = datetime.strptime(played_at, '%Y-%m-%dT%H:%M:%SZ')
+        except ValueError:
+            # Fallback: try to parse ISO format
+            try:
+                utc_time = datetime.fromisoformat(played_at.replace('Z', '+00:00'))
+            except ValueError:
+                # If all parsing fails, use current time as fallback
+                utc_time = datetime.now(pytz.UTC)
+        
         utc_time = utc_time.replace(tzinfo=pytz.UTC)
         rome_tz = pytz.timezone('Europe/Rome')
         rome_time = utc_time.astimezone(rome_tz)
@@ -354,7 +368,6 @@ def display_recently_played(sp):
     # Display raw data in expander
     with st.expander("View as table"):
         st.dataframe(pd.DataFrame(tracks_data))
-
 def save_spotify_data(data_type, data):
     """Save Spotify data to MongoDB."""
     from db_utils import upsert_user_document
@@ -464,7 +477,7 @@ def fetch_and_save_all_data(sp):
             #save_to_mongodb('following', following_data, ['artist_id', 'snapshot_date'])
             save_spotify_data('following', following_data)
         
-        # Recently Played
+        # Recently Played section for fetch_and_save_all_data function
         results = sp.current_user_recently_played(limit=50)
         if results['items']:
             recent_tracks = []
@@ -472,8 +485,22 @@ def fetch_and_save_all_data(sp):
                 track = item['track']
                 played_at = item['played_at']
                 
-                # Convert UTC time to Rome time
-                utc_time = datetime.strptime(played_at, '%Y-%m-%dT%H:%M:%S.%fZ')
+                # Convert UTC time to Rome time with flexible parsing
+                try:
+                    # Try parsing with microseconds first
+                    if '.' in played_at:
+                        utc_time = datetime.strptime(played_at, '%Y-%m-%dT%H:%M:%S.%fZ')
+                    else:
+                        # Parse without microseconds
+                        utc_time = datetime.strptime(played_at, '%Y-%m-%dT%H:%M:%SZ')
+                except ValueError:
+                    # Fallback: try to parse ISO format
+                    try:
+                        utc_time = datetime.fromisoformat(played_at.replace('Z', '+00:00'))
+                    except ValueError:
+                        # If all parsing fails, use current time as fallback
+                        utc_time = datetime.now(pytz.UTC)
+                
                 utc_time = utc_time.replace(tzinfo=pytz.UTC)
                 rome_tz = pytz.timezone('Europe/Rome')
                 rome_time = utc_time.astimezone(rome_tz)
